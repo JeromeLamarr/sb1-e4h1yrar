@@ -103,6 +103,9 @@ export function LoginPage() {
                 Register here
               </Link>
             </div>
+            <p className="text-xs text-gray-500 pt-2">
+              Note: You must verify your email address to access your account.
+            </p>
           </div>
         </div>
 

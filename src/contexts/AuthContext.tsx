@@ -9,6 +9,7 @@ interface AuthContextType {
   user: AuthUser | null;
   profile: UserProfile | null;
   loading: boolean;
+  isEmailVerified: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, fullName: string, affiliation?: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -21,6 +22,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isEmailVerified, setIsEmailVerified] = useState(false);
 
   const fetchUserProfile = async (userId: string) => {
     try {
@@ -41,8 +43,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
+      // Check if email is verified
       if (session?.user) {
-        fetchUserProfile(session.user.id);
+        // In Supabase, verified emails appear in user_metadata or as confirmed_at
+        const isVerified = session.user.email_confirmed_at !== null;
+        setIsEmailVerified(isVerified);
+        if (isVerified) {
+          fetchUserProfile(session.user.id);
+        }
       }
       setLoading(false);
     });
@@ -51,9 +59,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       (async () => {
         setUser(session?.user ?? null);
         if (session?.user) {
-          await fetchUserProfile(session.user.id);
+          const isVerified = session.user.email_confirmed_at !== null;
+          setIsEmailVerified(isVerified);
+          if (isVerified) {
+            await fetchUserProfile(session.user.id);
+          }
         } else {
           setProfile(null);
+          setIsEmailVerified(false);
         }
         setLoading(false);
       })();
@@ -70,6 +83,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (error) return { error };
+
+      // Check if email is verified before allowing login
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user && !session.user.email_confirmed_at) {
+        await supabase.auth.signOut();
+        return { error: new Error('Please verify your email before logging in. Check your inbox for the verification link.') };
+      }
 
       await supabase
         .from('users')
@@ -114,6 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     setUser(null);
     setProfile(null);
+    setIsEmailVerified(false);
   };
 
   const refreshProfile = async () => {
@@ -126,6 +147,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user,
     profile,
     loading,
+    isEmailVerified,
     signIn,
     signUp,
     signOut,

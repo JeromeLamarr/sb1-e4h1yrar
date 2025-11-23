@@ -1,18 +1,17 @@
 import { useState, FormEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { GraduationCap, Mail, Lock, User, Building, AlertCircle, CheckCircle, Shield } from 'lucide-react';
+import { GraduationCap, Mail, Lock, User, Building, AlertCircle, CheckCircle, Shield, Info } from 'lucide-react';
+import { registerUser, resendConfirmationEmail } from '../lib/authService';
 
 export function RegisterPage() {
-  const [step, setStep] = useState<'form' | 'verification' | 'success'>('form');
+  const [step, setStep] = useState<'form' | 'confirmation' | 'success'>('form');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [affiliation, setAffiliation] = useState('');
-  const [verificationCode, setVerificationCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [devCode, setDevCode] = useState('');
   const navigate = useNavigate();
 
   const handleSubmit = async (e: FormEvent) => {
@@ -32,113 +31,30 @@ export function RegisterPage() {
     setLoading(true);
 
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-verification-code`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            email,
-            fullName,
-            password,
-            affiliation: affiliation || undefined,
-          }),
-        }
-      );
+      const result = await registerUser({
+        email,
+        password,
+        fullName,
+        affiliation: affiliation || undefined,
+      });
 
-      const result = await response.json();
-
-      if (!result.success) {
-        throw new Error(result.error);
-      }
-
-      if (result.devCode) {
-        setDevCode(result.devCode);
-        alert(`DEVELOPMENT MODE: Your verification code is ${result.devCode}`);
-      }
-
-      setStep('verification');
+      setStep('confirmation');
     } catch (err: any) {
-      setError(err.message || 'Failed to send verification code');
+      setError(err.message || 'Failed to register. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleVerifyCode = async (e: FormEvent) => {
-    e.preventDefault();
+  const handleResendEmail = async () => {
     setError('');
     setLoading(true);
 
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-code`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            email,
-            code: verificationCode,
-          }),
-        }
-      );
-
-      const result = await response.json();
-
-      if (!result.success) {
-        throw new Error(result.error);
-      }
-
-      setStep('success');
-      setTimeout(() => {
-        navigate('/login');
-      }, 3000);
+      const result = await resendConfirmationEmail(email);
+      alert(result.message);
     } catch (err: any) {
-      setError(err.message || 'Invalid verification code');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleResendCode = async () => {
-    setError('');
-    setLoading(true);
-
-    try {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-verification-code`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            email,
-            fullName,
-            password,
-            affiliation: affiliation || undefined,
-          }),
-        }
-      );
-
-      const result = await response.json();
-
-      if (!result.success) {
-        throw new Error(result.error);
-      }
-
-      if (result.devCode) {
-        setDevCode(result.devCode);
-        alert(`DEVELOPMENT MODE: Your verification code is ${result.devCode}`);
-      } else {
-        alert('Verification code resent to your email!');
-      }
-    } catch (err: any) {
-      setError(err.message || 'Failed to resend verification code');
+      setError(err.message || 'Failed to resend email');
     } finally {
       setLoading(false);
     }
@@ -254,31 +170,37 @@ export function RegisterPage() {
                 disabled={loading}
                 className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? 'Sending Code...' : 'Create Account'}
+                {loading ? 'Creating Account...' : 'Create Account'}
               </button>
             </form>
           )}
 
-          {step === 'verification' && (
-            <form onSubmit={handleVerifyCode} className="space-y-5">
+          {step === 'confirmation' && (
+            <div className="space-y-5">
               <div className="text-center mb-6">
                 <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Shield className="h-8 w-8 text-blue-600" />
+                  <Mail className="h-8 w-8 text-blue-600" />
                 </div>
                 <h3 className="text-xl font-semibold text-gray-900 mb-2">Verify Your Email</h3>
                 <p className="text-gray-600 text-sm">
-                  We've sent a 6-digit verification code to
+                  A confirmation link has been sent to
                   <br />
                   <span className="font-medium text-gray-900">{email}</span>
                 </p>
               </div>
 
-              {devCode && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-                  <p className="text-sm font-medium text-yellow-800 mb-1">Development Mode</p>
-                  <p className="text-sm text-yellow-700">Email service not configured. Your code: <span className="font-bold text-lg tracking-wider">{devCode}</span></p>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex gap-3">
+                <Info className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                <div className="text-sm text-blue-800">
+                  <p className="font-medium mb-1">Next steps:</p>
+                  <ol className="list-decimal list-inside space-y-1 text-xs">
+                    <li>Open your email account</li>
+                    <li>Find the verification email from us</li>
+                    <li>Click the verification link</li>
+                    <li>Return here and log in</li>
+                  </ol>
                 </div>
-              )}
+              </div>
 
               {error && (
                 <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-start gap-2">
@@ -287,60 +209,43 @@ export function RegisterPage() {
                 </div>
               )}
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2 text-center">
-                  Enter Verification Code
-                </label>
-                <input
-                  type="text"
-                  value={verificationCode}
-                  onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  required
-                  maxLength={6}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center text-2xl tracking-widest font-semibold"
-                  placeholder="000000"
-                />
-                <p className="text-xs text-gray-500 text-center mt-2">Code expires in 10 minutes</p>
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading || verificationCode.length !== 6}
-                className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? 'Verifying...' : 'Verify Email'}
-              </button>
-
-              <div className="text-center">
+              <div className="bg-gray-50 p-4 rounded-lg text-center">
+                <p className="text-sm text-gray-600 mb-3">Didn't receive the email?</p>
                 <button
-                  type="button"
-                  onClick={handleResendCode}
+                  onClick={handleResendEmail}
                   disabled={loading}
                   className="text-sm text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50"
                 >
-                  Didn't receive code? Resend
+                  Resend Verification Email
                 </button>
               </div>
 
               <div className="text-center">
                 <button
-                  type="button"
-                  onClick={() => setStep('form')}
+                  onClick={() => {
+                    setStep('form');
+                    setError('');
+                  }}
                   disabled={loading}
                   className="text-sm text-gray-600 hover:text-gray-900 disabled:opacity-50"
                 >
-                  ← Change email address
+                  ← Back to Registration
                 </button>
               </div>
-            </form>
+            </div>
           )}
 
           {step === 'success' && (
             <div className="text-center py-8">
               <CheckCircle className="h-16 w-16 text-green-600 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Registration Complete!</h3>
-              <p className="text-gray-600 mb-2">Your account has been successfully created.</p>
-              <p className="text-sm text-gray-500">Redirecting to login...</p>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Email Verified!</h3>
+              <p className="text-gray-600 mb-6">Your account has been successfully activated.</p>
+              <button
+                onClick={() => navigate('/login')}
+                className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 font-medium"
+              >
+                Go to Login
+              </button>
             </div>
           )}
 
