@@ -158,8 +158,6 @@ export function SupervisorDashboard() {
         return;
       }
 
-      console.log('Successfully updated record:', updateData);
-
       await supabase.from('supervisor_assignments').update({
         status: action === 'approve' ? 'accepted' : 'rejected',
         remarks: remarks,
@@ -194,8 +192,6 @@ export function SupervisorDashboard() {
             message: `A ${selectedRecord.category} submission "${selectedRecord.title}" has been approved by supervisor and assigned to you`,
             payload: { ip_record_id: selectedRecord.id },
           });
-
-          console.log(`Assigned ${selectedRecord.category} submission to evaluator ID: ${categoryEvaluator.id}`);
         } else {
           console.warn(`No evaluator found for category: ${selectedRecord.category}`);
           alert(`Warning: No evaluator available for category "${selectedRecord.category}". The submission has been approved but not assigned to an evaluator. Please contact an administrator.`);

@@ -220,8 +220,6 @@ export function EvaluatorDashboard() {
         return;
       }
 
-      console.log('Successfully updated record:', updateData);
-
       await supabase.from('notifications').insert({
         user_id: selectedRecord.applicant_id,
         type: 'evaluation_complete',
